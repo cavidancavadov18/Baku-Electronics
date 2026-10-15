@@ -1,9 +1,50 @@
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: baku
+      POSTGRES_USER: baku
+      POSTGRES_PASSWORD: baku
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U baku -d baku"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      POSTGRES_DB: baku
+      POSTGRES_USER: baku
+      POSTGRES_PASSWORD: baku
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      DJANGO_SECRET_KEY: local-baku-electronics
+      DJANGO_DEBUG: "1"
+      CORS_ALLOWED_ORIGINS: http://localhost:3000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
   web:
     build: .
     ports:
       - "3000:3000"
     environment:
+      API_URL: http://backend:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
     volumes:
@@ -11,13 +52,11 @@ services:
       - web_node_modules:/app/node_modules
       - web_next:/app/.next
     command: npm run dev -- --hostname 0.0.0.0 --port 3000
-
-  # Backend hazır olanda bu bloku aç. Sonra yenə yalnız: docker compose up
-  # api:
-  #   build: ./backend
-  #   ports:
-  #     - "8000:8000"
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
+  pgdata:
   web_node_modules:
   web_next:

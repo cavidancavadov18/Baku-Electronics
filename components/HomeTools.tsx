@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Campaign } from "@/data/content";
-import { filterProducts, monthlyAmount, productImage, type Product } from "@/data/products";
+import { monthlyAmount, productImage, type Product, type SortKey } from "@/data/products";
 import { money } from "@/lib/format";
 import { withLocale, type Locale } from "@/lib/i18n";
 
@@ -86,9 +86,19 @@ export function DealClock({ locale, campaigns }: { locale: Locale; campaigns: Ca
   );
 }
 
-function picks(need: Need, budget: Budget, size: Size) {
+function selectProducts(list: Product[], options: { category?: string; sort?: SortKey }) {
+  let next = list.filter((item) => !options.category || item.category === options.category);
+  const discount = (item: Product) => item.oldPrice - item.price;
+  if (options.sort === "price-asc") next = [...next].sort((a, b) => a.price - b.price);
+  else if (options.sort === "price-desc") next = [...next].sort((a, b) => b.price - a.price);
+  else if (options.sort === "discount") next = [...next].sort((a, b) => discount(b) - discount(a));
+  else next = [...next].sort((a, b) => Number(b.bestseller) - Number(a.bestseller) || b.reviews - a.reviews);
+  return next;
+}
+
+function picks(products: Product[], need: Need, budget: Budget, size: Size) {
   const band = budgets.find((item) => item.id === budget) ?? budgets[1];
-  const sorted = filterProducts({ category: need, sort: "price-asc" });
+  const sorted = selectProducts(products, { category: need, sort: "price-asc" });
   let list = sorted.filter((item) => item.price >= band.min && item.price <= band.max);
   if (!list.length) {
     const center = Number.isFinite(band.max) ? (band.min + band.max) / 2 : band.min;
@@ -118,20 +128,20 @@ function ProductPicks({ locale, items }: { locale: Locale; items: Product[] }) {
   );
 }
 
-export function HomeTools({ locale }: { locale: Locale }) {
+export function HomeTools({ locale, products }: { locale: Locale; products: Product[] }) {
   const [step, setStep] = useState(0);
   const [need, setNeed] = useState<Need>("smartfonlar");
   const [budget, setBudget] = useState<Budget>("mid");
   const [size, setSize] = useState<Size>("mid");
   const [ready, setReady] = useState(false);
   const [meters, setMeters] = useState(2.5);
-  const phones = useMemo(() => filterProducts({ category: "smartfonlar", sort: "price-desc" }).slice(0, 8), []);
+  const phones = useMemo(() => selectProducts(products, { category: "smartfonlar", sort: "price-desc" }).slice(0, 8), [products]);
   const [phoneId, setPhoneId] = useState(phones[0]?.id ?? "");
   const [trade, setTrade] = useState(150);
   const phone = phones.find((item) => item.id === phoneId) ?? phones[0];
-  const advice = picks(need, budget, size);
+  const advice = picks(products, need, budget, size);
   const inches = meters < 1.8 ? 32 : meters < 3 ? 55 : 65;
-  const tvs = filterProducts({ category: "tv-audio", sort: "popular" });
+  const tvs = selectProducts(products, { category: "tv-audio", sort: "popular" });
   const sized = tvs.filter((item) => item.name.az.includes(String(inches)) || item.name.ru.includes(String(inches)));
   const tvPicks = (sized.length ? sized : tvs).slice(0, 3);
   const tradeValue = phone ? Math.min(trade, Math.round(phone.price * 0.6)) : 0;
