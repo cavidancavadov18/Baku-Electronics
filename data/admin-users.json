@@ -1,0 +1,10 @@
+[
+  {
+    "username": "admin",
+    "email": "admin@bakuelectronics.local",
+    "passwordHash": "9951075c432d6e6a7bb042b85e3659750a4b6856d63e68d7d4a02177f484624d",
+    "salt": "41ef0e7303d9ac2135bc09289f8e4e6f",
+    "is_staff": true,
+    "is_superuser": true
+  }
+]

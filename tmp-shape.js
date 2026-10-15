@@ -1,0 +1,11 @@
+const fs = require("fs");
+const html = fs.readFileSync("tmp-soy.html", "utf8");
+const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+const data = JSON.parse(m[1]);
+const products = data.props.pageProps.products;
+const { items, ...rest } = products.products || products;
+console.log("top keys", Object.keys(products));
+console.log("inner keys", Object.keys(products.products || {}));
+console.log("rest", JSON.stringify(rest, null, 2).slice(0, 2000));
+console.log("item count", (products.products?.items || []).length);
+console.log("query", JSON.stringify(data.query));

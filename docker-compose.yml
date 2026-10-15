@@ -1,0 +1,23 @@
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+      - web_next:/app/.next
+    command: npm run dev -- --hostname 0.0.0.0 --port 3000
+
+  # Backend hazır olanda bu bloku aç. Sonra yenə yalnız: docker compose up
+  # api:
+  #   build: ./backend
+  #   ports:
+  #     - "8000:8000"
+
+volumes:
+  web_node_modules:
+  web_next:
