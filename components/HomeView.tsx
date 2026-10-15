@@ -2,28 +2,17 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import type { Article } from "@/data/content";
-import { filterProducts, products, publicProduct } from "@/data/products";
-import type { VideoItem } from "@/lib/site-content";
+import type { Product } from "@/data/products";
+import type { HomePayload } from "@/lib/home";
 import { getDictionary, withLocale, type Locale } from "@/lib/i18n";
-import type { Campaign } from "@/data/content";
 import { DealClock, HomeTools } from "./HomeTools";
 import { ProductCard } from "./ProductCard";
 
-const homeBrands = ["Apple", "Samsung", "Xiaomi", "Honor", "LG", "Bosch", "Sony", "Lenovo", "ASUS", "Philips", "TCL", "HP"];
-
-const featureIcons = [
-  "https://media.bakuelectronics.az/media/feature_icons/arxayin-al.svg",
-  "https://media.bakuelectronics.az/media/feature_icons/endirimli-qiymeti-6ay.svg",
-  "https://media.bakuelectronics.az/media/feature_icons/suretli-catdirilma.svg",
-  "https://media.bakuelectronics.az/media/feature_icons/odenis-rahatligi.svg",
-];
-
 const tabs = ["smartfonlar", "notbuklar", "plansetler", "robot-tozsoran"] as const;
 
-export function HomeView({ locale, articles, banners, videos, campaigns }: { locale: Locale; articles: Article[]; banners: string[]; videos: VideoItem[]; campaigns: Campaign[] }) {
+export function HomeView({ locale, home }: { locale: Locale; home: Omit<HomePayload, "products"> & { products: Product[] } }) {
   const dict = getDictionary(locale);
-  const slides = (banners.length ? banners : ["https://media.bakuelectronics.az/media/page/slider/923x520_payız.webp"]).map((url) => encodeURI(url));
+  const slides = (home.banners.length ? home.banners : ["https://media.bakuelectronics.az/media/page/slider/923x520_payız.webp"]).map((url) => encodeURI(url));
   const [index, setIndex] = useState(0);
   const [tab, setTab] = useState<(typeof tabs)[number]>("smartfonlar");
   const [email, setEmail] = useState("");
@@ -34,16 +23,22 @@ export function HomeView({ locale, articles, banners, videos, campaigns }: { loc
     const timer = window.setInterval(() => setIndex((value) => (value + 1) % slides.length), 4200);
     return () => window.clearInterval(timer);
   }, [slides.length]);
-  const bestsellers = products.flatMap((item) => {
-    const next = publicProduct(item);
-    return next?.bestseller ? [next] : [];
-  });
-  const seasonal = useMemo(() => filterProducts({ category: tab, sort: "discount" }), [tab]);
+  const bestsellers = home.products.filter((item) => item.bestseller);
+  const seasonal = useMemo(
+    () => [...home.products.filter((item) => item.category === tab)].sort((a, b) => b.oldPrice - b.price - (a.oldPrice - a.price)),
+    [home.products, tab],
+  );
 
-  function subscribe(event: FormEvent) {
+  async function subscribe(event: FormEvent) {
     event.preventDefault();
     if (!email.includes("@")) return;
-    setSubscribed(true);
+    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const response = await fetch(`${base}/api/subscribe/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    if (response.ok) setSubscribed(true);
   }
 
   return (
@@ -84,23 +79,23 @@ export function HomeView({ locale, articles, banners, videos, campaigns }: { loc
       </div>
 
       <section className="benefits">
-        {dict.benefits.map((item, index) => (
+        {home.benefits.map((item) => (
           <Link key={item.href} href={withLocale(locale, item.href)} className="benefit">
-            <i aria-hidden="true"><img src={featureIcons[index]} alt="" /></i>
-            <strong>{item.title}</strong>
-            <span>{item.text}</span>
+            <i aria-hidden="true"><img src={item.icon} alt="" /></i>
+            <strong>{item.title[locale]}</strong>
+            <span>{item.text[locale]}</span>
           </Link>
         ))}
       </section>
 
       <section className="brand-rail" aria-label={locale === "az" ? "Brendlər" : "Бренды"}>
-        {homeBrands.map((brand) => (
+        {home.brands.map((brand) => (
           <Link key={brand} href={withLocale(locale, `/catalog?brand=${encodeURIComponent(brand)}`)}>{brand}</Link>
         ))}
       </section>
 
-      <DealClock locale={locale} campaigns={campaigns} />
-      <HomeTools locale={locale} />
+      <DealClock locale={locale} campaigns={home.campaigns} />
+      <HomeTools locale={locale} products={home.products} />
 
       <section className="section">
         <div className="section-head">
@@ -141,7 +136,7 @@ export function HomeView({ locale, articles, banners, videos, campaigns }: { loc
           <a className="light-btn" href="https://www.youtube.com/user/BakuElectronicsMMC" target="_blank" rel="noreferrer">{dict.youtubeCta}</a>
         </div>
         <div className="scroller video-row">
-          {videos.map((video) => (
+          {home.videos.map((video) => (
             <a key={video.id} className="video-card" href={video.href} target="_blank" rel="noreferrer">
               <img src={`https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`} alt="" />
               <i aria-hidden="true" />
@@ -152,20 +147,15 @@ export function HomeView({ locale, articles, banners, videos, campaigns }: { loc
       </section>
 
       <section className="section promo-duo">
-        <article className="promo-tile phone">
-          <div>
-            <div className="kicker">{dict.promoPhonesKicker}</div>
-            <h3>{dict.promoPhonesTitle}</h3>
-          </div>
-          <Link className="light-btn" href={withLocale(locale, "/catalog/smartfonlar")}>{dict.buyNow}</Link>
-        </article>
-        <article className="promo-tile audio">
-          <div>
-            <div className="kicker">{dict.promoAudioKicker}</div>
-            <h3>{dict.promoAudioTitle}</h3>
-          </div>
-          <Link className="light-btn" href={withLocale(locale, "/catalog/qulaqliqlar")}>{dict.buyNow}</Link>
-        </article>
+        {home.promos.map((item) => (
+          <article key={item.key} className={`promo-tile ${item.key === "audio" ? "audio" : "phone"}`}>
+            <div>
+              <div className="kicker">{item.kicker[locale]}</div>
+              <h3>{item.title[locale]}</h3>
+            </div>
+            <Link className="light-btn" href={withLocale(locale, item.href)}>{dict.buyNow}</Link>
+          </article>
+        ))}
       </section>
 
       <section className="section">
@@ -177,7 +167,7 @@ export function HomeView({ locale, articles, banners, videos, campaigns }: { loc
           <Link className="more" href={withLocale(locale, "/xeberler")}>{dict.newsCta}</Link>
         </div>
         <div className="news-grid">
-          {articles.slice(0, 6).map((article) => (
+          {home.articles.slice(0, 6).map((article) => (
             <article key={article.slug} className="news-card">
               <Link href={withLocale(locale, `/xeberler/${article.slug}`)} className="news-cover">
                 <img src={article.image} alt="" />
